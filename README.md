@@ -4,23 +4,27 @@ A **multi-agent autonomous coordination system** developed for an MAPC-like scen
 
 The project demonstrates autonomous decision-making, cooperative task execution, pathfinding, resource management, and communication between multiple software agents operating in a shared hexagonal environment.
 
+---
+
 ## Overview
 
 The system controls a team of up to **10 autonomous agents** operating simultaneously in the MASSim simulation environment.
 
-Agents start at the origin and independently explore the environment while sharing useful knowledge with the team. They must:
+Agents start at the origin and explore the environment while maintaining knowledge about their surroundings and coordinating with other agents.
 
-* explore unknown areas,
-* avoid blocked terrain,
-* locate and collect data,
-* manage limited energy,
-* navigate toward recharge locations,
-* transmit collected data to the origin,
-* and cooperate with other agents when direct transmission is inefficient.
+Their main objectives include:
+
+* exploring unknown areas,
+* avoiding blocked terrain,
+* locating and pursuing data,
+* managing limited energy,
+* navigating toward recharge locations,
+* transmitting collected data to the origin,
+* and cooperating with other agents when relay-based transmission is required.
 
 The implementation follows a **hybrid architecture**:
 
-* **AgentSpeak** handles high-level symbolic decision-making and agent behavior.
+* **AgentSpeak** handles high-level symbolic reasoning and behavioral decisions.
 * **Python** provides runtime support and computation-heavy functionality such as pathfinding, communication, state management, exploration heuristics, and relay coordination.
 
 ---
@@ -29,30 +33,34 @@ The implementation follows a **hybrid architecture**:
 
 ### Multi-Agent Execution
 
-The runtime can start between **1 and 10 agents** in parallel and connect them to the MASSim simulation server.
+The system can start between **1 and 10 agents** and connect them to the MASSim simulation server.
 
-All agents use the same AgentSpeak behavior model while making independent decisions based on their:
+All agents use the same AgentSpeak behavior model while making decisions based on their individual:
 
 * position,
-* current percepts,
-* energy,
+* percepts,
+* energy level,
+* current tasks,
 * stored knowledge,
-* assigned tasks,
-* and communication with other agents.
+* and interaction with other agents.
+
+---
 
 ### Autonomous Exploration
 
-Agents explore the hexagonal environment using structured exploration rather than purely random movement.
+Agents explore the environment using structured exploration rather than relying entirely on random movement.
 
-The exploration strategy considers:
+The exploration system considers:
 
 * previously visited cells,
-* team-wide visit frequency,
-* individual agent direction biases,
+* team-wide visit counts,
+* agent-specific movement ordering,
 * known obstacles,
 * and exploration boundaries.
 
-This reduces unnecessary overlap between agents and improves map coverage.
+This helps reduce unnecessary overlap between agents and improves overall map coverage.
+
+---
 
 ### A* Pathfinding
 
@@ -61,114 +69,133 @@ The Python runtime implements **A*-style pathfinding** for navigation.
 Pathfinding is used when agents need to move toward:
 
 * discovered data,
-* recharge locations,
+* oases,
 * the origin,
 * or assigned relay positions.
 
-If A* cannot find a valid route, the system uses bounded greedy movement as a fallback to reduce the chance of an agent becoming stuck.
+When a valid A* path cannot be found, the system can use bounded or greedy fallback movement to reduce the chance of agents becoming permanently stuck.
+
+---
 
 ### Obstacle-Aware Navigation
 
 The environment contains blocked cells represented as mountains.
 
-Agents maintain knowledge about discovered obstacles and avoid them during both path planning and local movement decisions.
+Agents maintain knowledge of discovered mountains and avoid these cells during:
 
-Obstacle information can also contribute to shared team knowledge.
+* path planning,
+* exploration,
+* and local movement decisions.
+
+The system also maintains shared environmental information that can improve later decisions.
+
+---
 
 ### Energy Management
 
 Agents operate with limited energy.
 
-When an agent's energy becomes low, its behavior changes toward finding a known **oasis** where it can recharge.
+When an agent's energy becomes low, its behavior changes toward finding and reaching a known **oasis** where it can recharge.
 
 The system includes:
 
 * oasis discovery,
-* path planning toward recharge locations,
-* fallback movement,
+* navigation toward recharge locations,
+* fallback movement when an agent becomes stuck,
 * and recharge behavior.
+
+---
 
 ### Data Claiming
 
-To prevent multiple agents from unnecessarily pursuing the same data item, the runtime implements a temporary **data-claiming mechanism**.
+The system includes a temporary **data-claiming mechanism**.
 
-Agents can claim discovered data positions for a limited period, reducing duplicated work and improving coordination.
+Instead of allowing every agent to move toward the same visible data position, data locations can temporarily be assigned to an agent.
 
-### Contract Net Protocol Inspired Coordination
+This reduces duplicated effort and improves coordinated exploration.
 
-For data that cannot be efficiently transmitted directly to the origin, the system uses a **Contract Net Protocol (CNP)-inspired coordination mechanism**.
+---
+
+### Contract-Net-Inspired Coordination
+
+When data cannot be efficiently transmitted directly to the origin, the system uses a **Contract Net Protocol inspired coordination mechanism**.
 
 A data-carrying agent can act as a manager and announce a relay task.
 
-Other agents can evaluate the request and submit bids based on factors such as:
+Other agents may respond with bids depending on conditions such as:
 
-* their position,
+* their current position,
 * distance to the origin,
 * available energy,
-* and current commitments.
+* and whether they are already committed to another task.
 
-The manager evaluates the available agents and prepares a cooperative transmission route.
+The manager then evaluates available bids and prepares a cooperative transfer strategy.
+
+---
 
 ### Relay-Based Data Transmission
 
-The system supports cooperative transmission using relay agents.
+The system supports cooperative data transmission using relay agents.
 
-Two coordination strategies are supported:
+Two relay scenarios are supported:
 
-**Immediate relay**
+#### Immediate Relay
 
-If suitable agents are already positioned correctly, the system can schedule the transmission directly.
+If suitable agents are already positioned so that a valid transfer route exists, sending and relay actions can be scheduled directly.
 
-**Mobilized relay**
+#### Mobilized Relay
 
-If relay agents are not yet in appropriate positions, the system assigns movement tasks first and schedules the data transfer for a later simulation step.
+If relay agents first need to move into appropriate positions, the system assigns movement tasks and schedules the transfer for a later simulation step.
 
-This allows multiple agents to cooperate on a single transmission task.
+This allows agents to cooperate dynamically instead of acting only as independent entities.
 
 ---
 
 ## System Architecture
 
 ```text
-                  MASSim Simulation Server
-                           │
-                           │ JSON / Socket Communication
-                           ▼
-                  Python Runtime Layer
-                    mapc_env.py
-                           │
-          ┌────────────────┼────────────────┐
-          │                │                │
-      Pathfinding      Shared State     Communication
-          │                │                │
-          └────────────────┼────────────────┘
-                           ▼
-                  AgentSpeak Reasoning
-                      agent.asl
-                           │
-                           ▼
-               Autonomous Agent Actions
-                           
-          Explore │ Move │ Recharge │ Send │ Relay
+                 MASSim Simulation Server
+                          │
+                          │
+                Socket / JSON Communication
+                          │
+                          ▼
+                 Python Runtime Layer
+                     mapc_env.py
+                          │
+          ┌───────────────┼───────────────┐
+          │               │               │
+     Pathfinding      Shared State    Communication
+          │               │               │
+          └───────────────┼───────────────┘
+                          │
+                          ▼
+                 AgentSpeak Reasoning
+                     agent.asl
+                          │
+                          ▼
+                Autonomous Decisions
+
+       Explore │ Move │ Recharge │ Send │ Relay
 ```
 
-The separation between symbolic reasoning and algorithmic computation keeps the system modular.
+The separation between AgentSpeak and Python keeps the system modular.
 
-AgentSpeak decides **what an agent should do**, while Python provides the functionality required to execute those decisions effectively.
+AgentSpeak determines **what behavior should be executed**, while Python provides the lower-level algorithms and runtime functionality needed to execute those decisions.
 
 ---
 
-## Environment
+## Environment Representation
 
-The simulation uses a **hexagonal grid** represented using cube coordinates:
+The MASSim environment is represented as a **hexagonal grid using cube coordinates**:
 
 ```text
 (q, r, s)
 ```
 
-Agent movement is possible in six directions.
+Agents can move in six directions.
 
-Distance between two cells is calculated using the standard hex-grid distance:
+The distance between two positions is calculated using:
 
 ```text
 d(a, b) = max(|q1 - q2|, |r1 - r2|, |s1 - s2|)
@@ -180,75 +207,82 @@ The origin is represented as:
 (0, 0, 0)
 ```
 
-This distance metric is used for:
+This distance calculation is used throughout the system for:
 
 * pathfinding,
-* selecting data targets,
-* determining transmission range,
-* evaluating relay candidates,
-* and navigation toward the origin.
+* target selection,
+* movement toward the origin,
+* evaluating relay routes,
+* and transmission-related decisions.
 
 ---
 
 ## Decision Flow
 
-During each simulation step:
+During a simulation step, the system follows a structured processing cycle:
 
 ```text
 Receive percepts from MASSim
           │
           ▼
-Update agent beliefs and shared state
+Parse percepts and update beliefs
+          │
+          ▼
+Update shared and per-agent state
           │
           ▼
 Synchronize agent simulation state
           │
           ▼
-AgentSpeak evaluates applicable plans
+Evaluate AgentSpeak plans
           │
           ▼
-Python support functions calculate required actions
+Use Python support functions
           │
           ▼
-Agent executes Move / Send / Relay / Recharge / Skip
+Execute an action
+          │
+          ▼
+Move / Send / Relay / Recharge / Skip
 ```
 
-The runtime processes percepts before allowing the next decision cycle, ensuring that agents make decisions using a consistent internal state.
+Percepts are processed before the next reasoning cycle so that agents make decisions using a consistent internal state.
 
 ---
 
 ## Main Agent Behaviors
 
-The AgentSpeak layer includes plans for:
+The AgentSpeak layer defines plans for behaviors including:
 
-* exploration,
-* recovering from out-of-zone positions,
-* moving toward discovered data,
+* general exploration,
+* local patrol near the origin,
+* out-of-zone recovery,
+* movement toward discovered data,
 * low-energy recovery,
+* movement toward oases,
 * recharging,
 * direct data transmission,
 * bidding for relay tasks,
 * managing contract-net tasks,
 * scheduled sending,
 * scheduled relaying,
-* relay positioning,
-* and local patrol near the origin.
+* and relay positioning.
 
 ---
 
 ## Technologies
 
-**Languages**
+### Languages
 
 * Python
 * AgentSpeak
 
-**Concepts & Techniques**
+### Concepts
 
 * Multi-Agent Systems
-* Autonomous Agents
-* Symbolic AI
 * Agent-Oriented Programming
+* Symbolic AI
+* Autonomous Agents
 * A* Search
 * Path Planning
 * Distributed Coordination
@@ -259,7 +293,7 @@ The AgentSpeak layer includes plans for:
 * Asynchronous Programming
 * Socket Communication
 
-**Platform**
+### Platform
 
 * MASSim
 
@@ -274,11 +308,16 @@ multi-agent-coordination-system/
 │   └── High-level AgentSpeak plans and decision logic
 │
 ├── mapc_env.py
-│   └── Python runtime, pathfinding, environment handling,
+│   └── Python runtime, environment handling, pathfinding,
 │       coordination and MASSim communication
 │
 ├── run_mas.py
 │   └── Multi-agent startup and server connection
+│
+├── images/
+│   ├── startup-log.png
+│   ├── massim-monitor.png
+│   └── exploration-log.png
 │
 ├── .gitignore
 │
@@ -303,7 +342,13 @@ Then start the multi-agent system:
 python run_mas.py
 ```
 
-The number of agents can also be configured:
+On Windows, the Python launcher can also be used:
+
+```powershell
+py .\run_mas.py
+```
+
+The number of agents can be configured from the command line:
 
 ```bash
 python run_mas.py --agents 10
@@ -317,7 +362,7 @@ Additional runtime parameters include:
 --connect-timeout
 ```
 
-For example:
+Example:
 
 ```bash
 python run_mas.py --agents 10 --host localhost --port 12300
@@ -325,14 +370,15 @@ python run_mas.py --agents 10 --host localhost --port 12300
 
 ---
 
-## Example Behaviors
+## Example Runtime Behaviors
 
-During a simulation, agents dynamically switch between behaviors such as:
+During execution, agents dynamically switch between behaviors such as:
 
 ```text
 Exploring
+Patrolling near origin
 Moving toward data
-Low energy — heading to oasis
+Low energy, heading to oasis
 Recharging
 Preparing relay task
 Moving to relay position
@@ -340,9 +386,43 @@ Sending data
 Relaying data
 ```
 
-The system was successfully executed with **10 agents operating concurrently** in the MASSim environment.
+---
 
-Runtime testing demonstrated autonomous exploration, inter-agent communication, energy-aware behavior, data pursuit, and cooperative execution.
+## Execution Screenshots
+
+### Agent Startup
+
+The screenshot below shows the startup phase of the system.
+
+All ten agents establish connections to the MASSim environment and begin executing their initial behaviors.
+
+![Agent Startup](imagesstartup-log.png.png)
+
+---
+
+### MASSim Monitor
+
+The MASSim monitor provides a visual representation of the running simulation.
+
+The map contains agents, obstacles, data-related elements, and the current simulation state.
+
+![MASSim Monitor](imagesmassim-monitor.png.png)
+
+---
+
+### Runtime Exploration and Energy Management
+
+The runtime log below shows several agents making autonomous decisions simultaneously.
+
+Visible behaviors include:
+
+* movement toward data,
+* low-energy detection,
+* navigation toward oases,
+* recharging,
+* and recovery when navigation becomes stuck or oscillates.
+
+![Exploration Runtime](imagesexploration-log.png.png)
 
 ---
 
@@ -350,36 +430,43 @@ Runtime testing demonstrated autonomous exploration, inter-agent communication, 
 
 This project was developed as part of an **Agent-Oriented Programming** university project.
 
-The objective was to design and implement a functional multi-agent system capable of autonomous operation and cooperation in an MAPC-like simulation environment.
+The objective was to design and implement a functional multi-agent system capable of autonomous operation and cooperation inside an MAPC-like MASSim environment.
 
-The final implementation goes beyond independent agent movement by combining:
+The final implementation combines:
 
 * autonomous decision-making,
 * persistent environmental knowledge,
-* path planning,
-* resource-aware behavior,
+* structured exploration,
+* obstacle-aware navigation,
+* A*-based path planning,
+* energy-aware behavior,
 * inter-agent communication,
 * distributed task allocation,
-* and coordinated execution.
+* data claiming,
+* and coordinated relay execution.
+
+---
 
 ## Authors
 
 **Ramin Pourheidar Shirazi**
 
+
 ---
 
 ## What I Learned
 
-This project provided practical experience with designing systems in which multiple autonomous components must make local decisions while contributing to a shared objective.
+This project provided practical experience designing software in which several autonomous components must make local decisions while contributing to a shared objective.
 
 Key areas of experience included:
 
 * designing autonomous agent behavior,
-* separating high-level reasoning from low-level algorithms,
-* implementing A* search and fallback navigation,
+* combining symbolic reasoning with algorithmic computation,
+* implementing A* search,
+* handling navigation on a hexagonal grid,
 * managing shared and per-agent state,
-* coordinating asynchronous agents,
+* coordinating multiple asynchronous agents,
+* implementing resource-aware decision making,
 * designing cooperative task allocation,
-* handling communication between autonomous agents,
+* handling communication between agents,
 * and debugging distributed behavior in a simulation environment.
-
